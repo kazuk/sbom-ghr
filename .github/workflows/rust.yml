@@ -16,7 +16,61 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
+    - uses: actions/cache@v3.0.2
+      id: cache-bin
+      with:
+        path: |
+          ~/.cargo/bin
+        key: ${{ runner.os }}-cargo-bin
+    
+    - name: install cargo-vendor
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      uses: actions-rs/install@v0.1
+      with:
+        crate: cargo-vendor
+        version: latest
+
+    - name: install cargo-make
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      uses: actions-rs/install@v0.1
+      with:
+        crate: cargo-make
+        version: latest
+
+    - name: install cargo-deb
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      uses: actions-rs/install@v0.1
+      with:
+        crate: cargo-deb
+        version: latest
+
+    - name: install cargo-rpm
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      uses: actions-rs/install@v0.1
+      with:
+        crate: cargo-rpm
+        version: latest
+
+    - uses: actions/cache@v3.0.2
+      id: cache-vendor
+      with:
+        path: |
+          ./vendor
+        key: ${{ runner.os }}-vendor-src
+
+    - name: Vendor dependencies
+      if: steps.cache-vendor.outputs.cache-hit != 'true'
+      run: |
+        cargo vendor > .cargo/config
+
+    - name: Vendor dependencies(cached)
+      if: steps.cache-vendor.outputs.cache-hit == 'true'
+      run: |
+        cp .cargo/config_vendored .cargo/config
+
     - name: Build
       run: cargo build --verbose
+    
     - name: Run tests
       run: cargo test --verbose
