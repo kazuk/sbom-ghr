@@ -2,6 +2,9 @@
 name = "sbom-ghr"
 version = "0.1.0"
 edition = "2021"
+description = "SBOM generator for github release"
+license = "MIT"
+authors = ["kazuhiko kikuchi <kazuk.dll@kazuk.jp>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -28,3 +31,12 @@ zip = "0.6.2"
 name="sbom-ghr"
 test = false
 bench=false
+
+[package.metadata.rpm]
+package = "sbom-ghr"
+
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+sbom-ghr = { path = "/usr/bin/./src/bin/sbom-ghr" }
