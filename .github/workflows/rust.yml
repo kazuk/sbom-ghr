@@ -22,7 +22,7 @@ jobs:
       with:
         path: |
           ~/.cache/sccache
-        key: ${{ runner.os }}-sccache
+        key: ${{ runner.os }}-sccache_1
 
     - uses: actions/cache@v3.0.2
       id: cache-bin
