@@ -22,42 +22,14 @@ jobs:
       with:
         path: |
           ~/.cache/sccache
-        key: ${{ runner.os }}-sccache_1
+        key: ${{ runner.os }}-sccache_${{ hashFiles('./Cargo.lock') }}
 
     - uses: actions/cache@v3.0.2
       id: cache-bin
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ runner.os }}-cargo-bin_2
-    
-    - name: install cargo-vendor
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      uses: actions-rs/install@v0.1
-      with:
-        crate: cargo-vendor
-        version: latest
-
-    - name: install cargo-make
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      uses: actions-rs/install@v0.1
-      with:
-        crate: cargo-make
-        version: latest
-
-    - name: install cargo-deb
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      uses: actions-rs/install@v0.1
-      with:
-        crate: cargo-deb
-        version: latest
-
-    - name: install cargo-rpm
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      uses: actions-rs/install@v0.1
-      with:
-        crate: cargo-rpm
-        version: latest
+        key: ${{ runner.os }}-cargo-bin_${{ hashFiles('./Cargo.lock') }}
 
     - name: install sccache
       if: steps.cache-bin.outputs.cache-hit != 'true'
@@ -66,19 +38,37 @@ jobs:
         crate: sccache
         version: latest
 
+    - name: install cargo-vendor
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        RUSTC_WRAPPER=sccache cargo install cargo-vendor
+
+    - name: install cargo-make
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        RUSTC_WRAPPER=sccache cargo install cargo-make
+
+    - name: install cargo-deb
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        RUSTC_WRAPPER=sccache cargo install cargo-deb
+
+    - name: install cargo-rpm
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        RUSTC_WRAPPER=sccache cargo install cargo-rpm
+
     - name: install cargo-deny
       if: steps.cache-bin.outputs.cache-hit != 'true'
-      uses: actions-rs/install@v0.1
-      with:
-        crate: cargo-deny
-        version: latest
+      run: |
+        RUSTC_WRAPPER=sccache cargo install cargo-deny
 
     - uses: actions/cache@v3.0.2
       id: cache-vendor
       with:
         path: |
           ./vendor
-        key: ${{ runner.os }}-vendor-src
+        key: ${{ runner.os }}-vendor-${{ hashFiles('./Cargo.lock') }}
 
     - name: Vendor dependencies
       if: steps.cache-vendor.outputs.cache-hit != 'true'
