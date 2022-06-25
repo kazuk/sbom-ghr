@@ -92,3 +92,7 @@ jobs:
       run: |
         RUSTC_WRAPPER=sccache
         cargo test --verbose
+    
+    - name: show cache status
+      run: |
+        sccache --show-stats
