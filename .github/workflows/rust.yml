@@ -85,13 +85,11 @@ jobs:
 
     - name: Build
       run: |
-        RUSTC_WRAPPER=sccache
-        cargo build --verbose
+        RUSTC_WRAPPER=sccache cargo build --verbose
     
     - name: Run tests
       run: |
-        RUSTC_WRAPPER=sccache
-        cargo test --verbose
+        RUSTC_WRAPPER=sccache cargo test --verbose
     
     - name: show cache status
       run: |
