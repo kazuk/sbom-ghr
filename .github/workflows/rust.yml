@@ -29,7 +29,7 @@ jobs:
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ runner.os }}-cargo-bin_1
+        key: ${{ runner.os }}-cargo-bin_2
     
     - name: install cargo-vendor
       if: steps.cache-bin.outputs.cache-hit != 'true'
@@ -66,6 +66,13 @@ jobs:
         crate: sccache
         version: latest
 
+    - name: install cargo-deny
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      uses: actions-rs/install@v0.1
+      with:
+        crate: cargo-deny
+        version: latest
+
     - uses: actions/cache@v3.0.2
       id: cache-vendor
       with:
@@ -82,6 +89,10 @@ jobs:
       if: steps.cache-vendor.outputs.cache-hit == 'true'
       run: |
         cp .cargo/config_vendored .cargo/config
+
+    - name: Lint dependencies
+      run: |
+        cargo deny check
 
     - name: Build
       run: |
