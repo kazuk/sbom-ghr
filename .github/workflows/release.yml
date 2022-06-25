@@ -26,8 +26,8 @@ jobs:
     - name: Archive deb package
       uses: actions/upload-artifact@v3
       with:
-        name: sbom-ghr_${{ needs.get_version.outputs.crate_version }}_amd64.deb
-        path: target/debian/sbom-ghr_${{ needs.get_version.outputs.crate_version }}_amd64.deb
+        name: sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
+        path: target/debian/sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
         retention-days: 3
     
     - name: build rpm
@@ -37,6 +37,6 @@ jobs:
     - name: Archive rpm package
       uses: actions/upload-artifact@v3
       with:
-        name: sbom-ghr-${{ needs.get_version.outputs.crate_version }}-1.x86_64.rpm
-        path: target/release/rpmbuild/RPMS/x86_64/sbom-ghr-${{ needs.get_version.outputs.crate_version }}-1.x86_64.rpm
+        name: sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
+        path: target/release/rpmbuild/RPMS/x86_64/sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
         retention-days: 3
