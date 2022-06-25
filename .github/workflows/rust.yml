@@ -18,11 +18,18 @@ jobs:
     - uses: actions/checkout@v3
 
     - uses: actions/cache@v3.0.2
+      id: sccache
+      with:
+        path: |
+          ~/.cache/sccache
+        key: ${{ runner.os }}-sccache
+
+    - uses: actions/cache@v3.0.2
       id: cache-bin
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ runner.os }}-cargo-bin
+        key: ${{ runner.os }}-cargo-bin_1
     
     - name: install cargo-vendor
       if: steps.cache-bin.outputs.cache-hit != 'true'
@@ -52,6 +59,13 @@ jobs:
         crate: cargo-rpm
         version: latest
 
+    - name: install sccache
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      uses: actions-rs/install@v0.1
+      with:
+        crate: sccache
+        version: latest
+
     - uses: actions/cache@v3.0.2
       id: cache-vendor
       with:
@@ -70,7 +84,11 @@ jobs:
         cp .cargo/config_vendored .cargo/config
 
     - name: Build
-      run: cargo build --verbose
+      run: |
+        RUSTC_WRAPPER=sccache
+        cargo build --verbose
     
     - name: Run tests
-      run: cargo test --verbose
+      run: |
+        RUSTC_WRAPPER=sccache
+        cargo test --verbose
