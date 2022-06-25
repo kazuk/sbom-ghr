@@ -83,6 +83,7 @@ mod tests {
     fn test_analyze_self() -> Result<(), PackageAnalyzeError> {
         let mut path_pkg = PathPackage::new(Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap()));
         path_pkg.append_ignore(&PathBuf::from("target").as_path());
+        path_pkg.append_ignore(&PathBuf::from("vendor").as_path());
         path_pkg.append_ignore(&PathBuf::from(".git").as_path());
         path_pkg.append_ignore(&PathBuf::from("Cargo.lock").as_path());
 
