@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: sccache
 
 jobs:
   build:
@@ -31,35 +32,11 @@ jobs:
           ~/.cargo/bin
         key: ${{ runner.os }}-cargo-bin_${{ hashFiles('Cargo.lock') }}
 
-    - name: install sccache
+    - name: install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
       run: |
-        cargo install -f sccache
+        cargo install cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny
 
-    - name: install cargo-vendor
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      run: |
-        RUSTC_WRAPPER=sccache cargo install cargo-vendor
-
-    - name: install cargo-make
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      run: |
-        RUSTC_WRAPPER=sccache cargo install cargo-make
-
-    - name: install cargo-deb
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      run: |
-        RUSTC_WRAPPER=sccache cargo install cargo-deb
-
-    - name: install cargo-rpm
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      run: |
-        RUSTC_WRAPPER=sccache cargo install cargo-rpm
-
-    - name: install cargo-deny
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      run: |
-        RUSTC_WRAPPER=sccache cargo install cargo-deny
 
     - uses: actions/cache@v3.0.2
       id: cache-vendor
