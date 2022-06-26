@@ -19,9 +19,10 @@ jobs:
         VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r ".packages | map(select(.manifest_path==\"$METADATA_PATH\")) | map(.version) | @tsv")
         echo "::set-output name=crate_version::$VERSION"
   
-    - name: build deb
+    - name: build packages
       run: |
         cargo deb
+        cargo rpm build
 
     - name: Archive deb package
       uses: actions/upload-artifact@v3
@@ -30,10 +31,6 @@ jobs:
         path: target/debian/sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
         retention-days: 3
     
-    - name: build rpm
-      run: |
-        cargo rpm
-
     - name: Archive rpm package
       uses: actions/upload-artifact@v3
       with:
