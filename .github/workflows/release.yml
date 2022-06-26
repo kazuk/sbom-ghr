@@ -8,6 +8,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v3
 
@@ -46,3 +48,35 @@ jobs:
     - name: push crates.io
       run: |
         cargo publish --token ${{ secrets.CRATES_IO_API_TOKEN }}
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset (deb)
+      id: upload-release-asset-deb 
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }} 
+        asset_path: ./target/debian/sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
+        asset_name: sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
+        
+    - name: Upload Release Asset (rpm)
+      id: upload-release-asset-rpm
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }} 
+        asset_path: ./target/release/rpmbuild/RPMS/x86_64/sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
+        asset_name: sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
+
