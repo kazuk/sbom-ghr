@@ -61,12 +61,12 @@ jobs:
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bins
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
 
     - name: install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
       run: |
-        cargo install --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny
+        cargo install -f --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny cargo-build-dependencies
 
   build:
     needs: [prepare_sccache, prepare_tools]
@@ -109,7 +109,7 @@ jobs:
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin_${{ hashFiles('Cargo.lock') }}
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
 
     - uses: actions/cache@v3.0.2
       id: cache-vendor
