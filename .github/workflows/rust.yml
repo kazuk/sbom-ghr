@@ -1,0 +1,297 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+  KEY_PREFIX: Cache_0 # change key prefix to every cache ignore
+  SCCACHE_VERSION: 0.3.0
+
+jobs:
+  prepare_sccache:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/cache@v3.0.2
+      id: sccache_bin
+      with:
+        path: |
+          /usr/local/bin/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+    - name: install pre-built sccache
+      if: steps.sccache_bin.outputs.cache-hit != 'true'
+      run: |
+        wget https://github.com/mozilla/sccache/releases/download/v${{ env.SCCACHE_VERSION }}/sccache-v${{ env.SCCACHE_VERSION }}-x86_64-unknown-linux-musl.tar.gz \
+            && tar xzf sccache-v${{ env.SCCACHE_VERSION }}-x86_64-unknown-linux-musl.tar.gz \
+            && mv sccache-v${{ env.SCCACHE_VERSION }}-x86_64-unknown-linux-musl/sccache /usr/local/bin/sccache \
+            && chmod +x /usr/local/bin/sccache
+        rm sccache-v${{ env.SCCACHE_VERSION }}-x86_64-unknown-linux-musl.tar.gz
+        rm -rf sccache-v${{ env.SCCACHE_VERSION }}-x86_64-unknown-linux-musl
+
+  prepare_tools:
+    needs: prepare_sccache
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+    steps:
+    - uses: actions/cache@v3.0.2
+      id: sccache_bin
+      with:
+        path: |
+          /usr/local/bin/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+
+    - name: check pre-built sccache
+      if: steps.sccache_bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - uses: actions/cache@v3.0.2
+      id: sccache
+      with:
+        path: |
+          ~/.cache/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_tools
+
+    - uses: actions/cache@v3.0.2
+      id: cache-bin
+      with:
+        path: |
+          ~/.cargo/bin
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+
+    - name: install binaries
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        cargo install -f --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny cargo-build-dependencies
+
+    - name: show cache status
+      run: |
+        sccache --show-stats
+
+  build_dependencies:
+    needs: [prepare_sccache, prepare_tools]
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/cache@v3.0.2
+      id: sccache_bin
+      with:
+        path: |
+          /usr/local/bin/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+
+    - uses: actions/cache@v3.0.2
+      id: sccache
+      with:
+        path: |
+          ~/.cache/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
+
+    - name: check pre-built sccache
+      if: steps.sccache_bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - uses: actions/cache@v3.0.2
+      id: cache-bin
+      with:
+        path: |
+          ~/.cargo/bin
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+
+    - uses: actions/cache@v3.0.2
+      id: cache-vendor
+      with:
+        path: |
+          ./vendor
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
+
+    - name: Vendor dependencies(fetch)
+      if: steps.cache-vendor.outputs.cache-hit != 'true'
+      run: |
+        cargo vendor > .cargo/config
+
+    - name: Vendor dependencies(cached)
+      if: steps.cache-vendor.outputs.cache-hit == 'true'
+      run: |
+        cp .cargo/config_vendored .cargo/config
+
+    - name: Lint dependencies
+      if: steps.cache-vendor.outputs.cache-hit != 'true'
+      run: |
+        cargo deny check
+
+    - name: build dependencies
+      if: steps.sccache.outputs.cache-hit != 'true'
+      run: |
+        cargo build-dependencies
+        cargo build-dependencies --release
+
+    - name: show cache status
+      run: |
+        sccache --show-stats
+
+  build_packages:
+    needs: [prepare_sccache, prepare_tools, build_dependencies]
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/cache@v3.0.2
+      id: sccache_bin
+      with:
+        path: |
+          /usr/local/bin/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+
+    - name: check pre-built sccache
+      if: steps.sccache_bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - name: get version number
+      id: get_version
+      run: |
+        # get Cargo.toml path
+        METADATA_PATH=$(cargo locate-project --message-format plain)
+        # get crate version 
+        VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r ".packages | map(select(.manifest_path==\"$METADATA_PATH\")) | map(.version) | @tsv")
+        echo "::set-output name=crate_version::$VERSION"
+
+    - uses: actions/cache@v3.0.2
+      id: sccache
+      with:
+        path: |
+          ~/.cache/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
+
+    - uses: actions/cache@v3.0.2
+      id: cache-bin
+      with:
+        path: |
+          ~/.cargo/bin
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+
+    - uses: actions/cache@v3.0.2
+      id: cache-vendor
+      with:
+        path: |
+          ./vendor
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
+
+    - name: check install binaries
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - name: Vendor dependencies(fetch)
+      if: steps.cache-vendor.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - name: Vendor dependencies(cached)
+      if: steps.cache-vendor.outputs.cache-hit == 'true'
+      run: |
+        cp .cargo/config_vendored .cargo/config
+
+    - name: Package
+      run: |
+        cargo build --release --verbose
+        cargo deb
+        cargo rpm build
+
+    - name: show cache status
+      run: |
+        sccache --show-stats
+
+    - name: Archive deb package
+      uses: actions/upload-artifact@v3
+      with:
+        name: sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
+        path: target/debian/sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
+        retention-days: 3
+    
+    - name: Archive rpm package
+      uses: actions/upload-artifact@v3
+      with:
+        name: sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
+        path: target/release/rpmbuild/RPMS/x86_64/sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
+        retention-days: 3
+
+  build_and_test:
+    needs: [prepare_sccache, prepare_tools, build_dependencies]
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+    steps:
+    - uses: actions/checkout@v3
+  
+    - uses: actions/cache@v3.0.2
+      id: sccache_bin
+      with:
+        path: |
+          /usr/local/bin/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+
+    - name: check pre-built sccache
+      if: steps.sccache_bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+ 
+    - uses: actions/cache@v3.0.2
+      id: sccache
+      with:
+        path: |
+          ~/.cache/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
+
+    - uses: actions/cache@v3.0.2
+      id: cache-bin
+      with:
+        path: |
+          ~/.cargo/bin
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+
+    - uses: actions/cache@v3.0.2
+      id: cache-vendor
+      with:
+        path: |
+          ./vendor
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
+
+    - name: check install binaries
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - name: Vendor dependencies(fetch)
+      if: steps.cache-vendor.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - name: Vendor dependencies(cached)
+      if: steps.cache-vendor.outputs.cache-hit == 'true'
+      run: |
+        cp .cargo/config_vendored .cargo/config
+
+    - name: Build
+      run: |
+        cargo build --verbose
+    
+    - name: Run tests
+      run: |
+        cargo test --verbose
+
+    - name: show cache status
+      run: |
+        sccache --show-stats
+
