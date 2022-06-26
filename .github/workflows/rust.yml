@@ -12,9 +12,7 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
 
@@ -32,12 +30,6 @@ jobs:
           ~/.cargo/bin
         key: ${{ runner.os }}-cargo-bin_${{ hashFiles('Cargo.lock') }}
 
-    - name: install binaries
-      if: steps.cache-bin.outputs.cache-hit != 'true'
-      run: |
-        cargo install cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny
-
-
     - uses: actions/cache@v3.0.2
       id: cache-vendor
       with:
@@ -45,7 +37,12 @@ jobs:
           ./vendor
         key: ${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
 
-    - name: Vendor dependencies
+    - name: install binaries
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        cargo install --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny
+
+    - name: Vendor dependencies(fetch)
       if: steps.cache-vendor.outputs.cache-hit != 'true'
       run: |
         cargo vendor > .cargo/config
@@ -61,12 +58,18 @@ jobs:
 
     - name: Build
       run: |
-        RUSTC_WRAPPER=sccache cargo build --verbose
+        cargo build --verbose
     
     - name: Run tests
       run: |
-        RUSTC_WRAPPER=sccache cargo test --verbose
+        cargo test --verbose
     
+    - name: Package
+      run: |
+        cargo build --release --verbose
+        cargo deb
+        cargo rpm build
+
     - name: show cache status
       run: |
         sccache --show-stats
