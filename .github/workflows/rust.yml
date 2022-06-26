@@ -50,6 +50,7 @@ jobs:
     - name: install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
       run: |
+        RUSTC_WRAPPER="" cargo install --verbose -f sccache
         cargo install --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny
 
     - name: Vendor dependencies(fetch)
