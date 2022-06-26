@@ -9,6 +9,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUSTC_WRAPPER: sccache
+  KEY_PREFIX: Cache_0 # change key prefix to every cache ignore
 
 jobs:
   build:
@@ -30,21 +31,21 @@ jobs:
       with:
         path: |
           ~/.cache/sccache
-        key: ${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
 
     - uses: actions/cache@v3.0.2
       id: cache-bin
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ runner.os }}-cargo-bin_${{ hashFiles('Cargo.lock') }}
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin_${{ hashFiles('Cargo.lock') }}
 
     - uses: actions/cache@v3.0.2
       id: cache-vendor
       with:
         path: |
           ./vendor
-        key: ${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
 
     - name: install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
