@@ -37,7 +37,7 @@ jobs:
       id: cache-bin
       with:
         path: |
-          ~/.cargo/bin
+          ~/.cargo/bin-cache
         key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin_${{ hashFiles('Cargo.lock') }}
 
     - uses: actions/cache@v3.0.2
@@ -50,8 +50,15 @@ jobs:
     - name: install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
       run: |
-        RUSTC_WRAPPER="" cargo install --verbose -f sccache
         cargo install --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny
+        mkdir -p ~/.cargo/bin-cache
+        cp ~/.cargo/bin ~/.cargo/bin_cache
+
+    - name: restore cached binaries
+      if: steps.cache-bin.outputs.cache-hit == 'true'
+      run: |
+        cp ~/.cargo/bin_cache ~/.cargo/bin
+
 
     - name: Vendor dependencies(fetch)
       if: steps.cache-vendor.outputs.cache-hit != 'true'
