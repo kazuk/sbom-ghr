@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+
+    - name: install binaries
+      run: |
+        cargo install -f --verbose cargo-deb cargo-rpm
+
     - name: get version number
       id: get_version
       run: |
@@ -37,3 +42,7 @@ jobs:
         name: sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
         path: target/release/rpmbuild/RPMS/x86_64/sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
         retention-days: 3
+
+    - name: push crates.io
+      run: |
+        cargo publish --token ${{ secrets.CRATES_IO_API_TOKEN }}
