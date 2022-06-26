@@ -14,13 +14,18 @@ env:
 jobs:
   prepare_sccache:
     runs-on: ubuntu-latest
+    outputs:
+      CACHE_KEY: ${{ steps.setup-key.outputs.CACHE_KEY }}
     steps:
+    - id: setup-key
+      run: |
+        echo '::set-output name=CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}'
     - uses: actions/cache@v3.0.2
       id: sccache_bin
       with:
         path: |
           /usr/local/bin/sccache
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+        key: ${{ steps.setup-key.outputs.CACHE_KEY }}
     - name: install pre-built sccache
       if: steps.sccache_bin.outputs.cache-hit != 'true'
       run: |
@@ -36,13 +41,18 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: sccache
+    outputs:
+      BIN_CACHE_KEY: ${{ steps.setup-key.outputs.BIN_CACHE_KEY }}
     steps:
+    - id: setup-key
+      run: |
+        echo '::set-output name=BIN_CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin'
     - uses: actions/cache@v3.0.2
       id: sccache_bin
       with:
         path: |
           /usr/local/bin/sccache
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+        key: ${{ needs.prepare_sccache.outputs.CACHE_KEY }}
 
     - name: check pre-built sccache
       if: steps.sccache_bin.outputs.cache-hit != 'true'
@@ -61,7 +71,7 @@ jobs:
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+        key: ${{ steps.setup-key.outputs.BIN_CACHE_KEY }}
 
     - name: install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
@@ -77,7 +87,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: sccache
+    outputs:
+      BUILD_CACHE_KEY: ${{ steps.setup-key.outputs.BUILD_CACHE_KEY }}
+      VENDOR_CACHE_KEY: ${{ steps.setup-key.outputs.VENDOR_CACHE_KEY }}
     steps:
+    - id: setup-key
+      run: |
+        echo '::set-output name=BUILD_CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}'
+        echo '::set-output name=VENDOR_CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}'
     - uses: actions/checkout@v3
 
     - uses: actions/cache@v3.0.2
@@ -85,14 +102,14 @@ jobs:
       with:
         path: |
           /usr/local/bin/sccache
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+        key: ${{ needs.prepare_sccache.outputs.CACHE_KEY }}
 
     - uses: actions/cache@v3.0.2
       id: sccache
       with:
         path: |
           ~/.cache/sccache
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
+        key: ${{ steps.setup-key.outputs.BUILD_CACHE_KEY }}
 
     - name: check pre-built sccache
       if: steps.sccache_bin.outputs.cache-hit != 'true'
@@ -104,14 +121,14 @@ jobs:
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+        key: ${{ needs.prepare_tools.outputs.BIN_CACHE_KEY }}
 
     - uses: actions/cache@v3.0.2
       id: cache-vendor
       with:
         path: |
           ./vendor
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
+        key: ${{ steps.setup-key.outputs.VENDOR_CACHE_KEY }}
 
     - name: Vendor dependencies(fetch)
       if: steps.cache-vendor.outputs.cache-hit != 'true'
@@ -151,7 +168,7 @@ jobs:
       with:
         path: |
           /usr/local/bin/sccache
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+        key: ${{ needs.prepare_sccache.outputs.CACHE_KEY }}
 
     - name: check pre-built sccache
       if: steps.sccache_bin.outputs.cache-hit != 'true'
@@ -172,21 +189,21 @@ jobs:
       with:
         path: |
           ~/.cache/sccache
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
+        key: ${{ needs.build_dependencies.outputs.BUILD_CACHE_KEY }}
 
     - uses: actions/cache@v3.0.2
       id: cache-bin
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+        key: ${{ needs.prepare_tools.outputs.BIN_CACHE_KEY }}
 
     - uses: actions/cache@v3.0.2
       id: cache-vendor
       with:
         path: |
           ./vendor
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
+        key: ${{ needs.build_dependencies.outputs.VENDOR_CACHE_KEY }}
 
     - name: check install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
@@ -240,7 +257,7 @@ jobs:
       with:
         path: |
           /usr/local/bin/sccache
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+        key: ${{ needs.prepare_sccache.outputs.CACHE_KEY }}
 
     - name: check pre-built sccache
       if: steps.sccache_bin.outputs.cache-hit != 'true'
@@ -252,21 +269,21 @@ jobs:
       with:
         path: |
           ~/.cache/sccache
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
+        key: ${{ needs.build_dependencies.outputs.BUILD_CACHE_KEY }}
 
     - uses: actions/cache@v3.0.2
       id: cache-bin
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+        key: ${{ needs.prepare_tools.outputs.BIN_CACHE_KEY }}
 
     - uses: actions/cache@v3.0.2
       id: cache-vendor
       with:
         path: |
           ./vendor
-        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
+        key: ${{ needs.build_dependencies.outputs.VENDOR_CACHE_KEY }}
 
     - name: check install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
