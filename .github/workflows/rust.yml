@@ -228,6 +228,7 @@ jobs:
         cargo rpm build
     
     - name: test publish (Dry Run)
+      run: |
         cargo publish --dry-run
 
     - name: show cache status
