@@ -31,8 +31,45 @@ jobs:
         rm sccache-v${{ env.SCCACHE_VERSION }}-x86_64-unknown-linux-musl.tar.gz
         rm -rf sccache-v${{ env.SCCACHE_VERSION }}-x86_64-unknown-linux-musl
 
-  build:
+  prepare_tools:
     needs: prepare_sccache
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+    steps:
+    - uses: actions/cache@v3.0.2
+      id: sccache_bin
+      with:
+        path: |
+          /usr/local/bin/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+
+    - name: check pre-built sccache
+      if: steps.sccache_bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - uses: actions/cache@v3.0.2
+      id: sccache
+      with:
+        path: |
+          ~/.cache/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_tools
+
+    - uses: actions/cache@v3.0.2
+      id: cache-bin
+      with:
+        path: |
+          ~/.cargo/bin
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bins
+
+    - name: install binaries
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        cargo install --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny
+
+  build:
+    needs: [prepare_sccache, prepare_tools]
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: sccache
@@ -81,10 +118,10 @@ jobs:
           ./vendor
         key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
 
-    - name: install binaries
+    - name: check install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
       run: |
-        cargo install --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny
+        exit 1
 
     - name: Vendor dependencies(fetch)
       if: steps.cache-vendor.outputs.cache-hit != 'true'
