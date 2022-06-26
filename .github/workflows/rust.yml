@@ -50,14 +50,15 @@ jobs:
     - name: install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
       run: |
+        RUSTC_WRAPPER="" cargo install --verbose -f sccache
         cargo install --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny
         mkdir -p ~/.cargo/bin-cache
-        cp ~/.cargo/bin ~/.cargo/bin_cache
+        cp -r ~/.cargo/bin ~/.cargo/bin_cache
 
     - name: restore cached binaries
       if: steps.cache-bin.outputs.cache-hit == 'true'
       run: |
-        cp ~/.cargo/bin_cache ~/.cargo/bin
+        cp -r ~/.cargo/bin_cache ~/.cargo/bin
 
 
     - name: Vendor dependencies(fetch)
