@@ -25,7 +25,7 @@ jobs:
       with:
         path: |
           /usr/local/bin/sccache
-        key: ${{ env.CACHE_KEY }}
+        key: ${{ steps.setup-key.outputs.CACHE_KEY }}
     - name: install pre-built sccache
       if: steps.sccache_bin.outputs.cache-hit != 'true'
       run: |
@@ -71,7 +71,7 @@ jobs:
       with:
         path: |
           ~/.cargo/bin
-        key: ${{ env.BIN_CACHE_KEY }}
+        key: ${{ steps.setup-key.outputs.BIN_CACHE_KEY }}
 
     - name: install binaries
       if: steps.cache-bin.outputs.cache-hit != 'true'
@@ -109,7 +109,7 @@ jobs:
       with:
         path: |
           ~/.cache/sccache
-        key: ${{ env.BUILD_CACHE_KEY }}
+        key: ${{ steps.setup-key.outputs.BUILD_CACHE_KEY }}
 
     - name: check pre-built sccache
       if: steps.sccache_bin.outputs.cache-hit != 'true'
@@ -128,7 +128,7 @@ jobs:
       with:
         path: |
           ./vendor
-        key: ${{ env.VENDOR_CACHE_KEY }}
+        key: ${{ steps.setup-key.outputs.VENDOR_CACHE_KEY }}
 
     - name: Vendor dependencies(fetch)
       if: steps.cache-vendor.outputs.cache-hit != 'true'
