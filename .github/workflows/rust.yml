@@ -68,8 +68,77 @@ jobs:
       run: |
         cargo install -f --verbose cargo-vendor cargo-make cargo-deb cargo-rpm cargo-deny cargo-build-dependencies
 
-  build:
+    - name: show cache status
+      run: |
+        sccache --show-stats
+
+  build_dependencies:
     needs: [prepare_sccache, prepare_tools]
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/cache@v3.0.2
+      id: sccache_bin
+      with:
+        path: |
+          /usr/local/bin/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+
+    - uses: actions/cache@v3.0.2
+      id: sccache
+      with:
+        path: |
+          ~/.cache/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
+
+    - name: check pre-built sccache
+      if: steps.sccache_bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - uses: actions/cache@v3.0.2
+      id: cache-bin
+      with:
+        path: |
+          ~/.cargo/bin
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+
+    - uses: actions/cache@v3.0.2
+      id: cache-vendor
+      with:
+        path: |
+          ./vendor
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
+
+    - name: Vendor dependencies(fetch)
+      if: steps.cache-vendor.outputs.cache-hit != 'true'
+      run: |
+        cargo vendor > .cargo/config
+
+    - name: Vendor dependencies(cached)
+      if: steps.cache-vendor.outputs.cache-hit == 'true'
+      run: |
+        cp .cargo/config_vendored .cargo/config
+
+    - name: Lint dependencies
+      if: steps.cache-vendor.outputs.cache-hit != 'true'
+      run: |
+        cargo deny check
+
+    - name: build dependencies
+      run: |
+        cargo build-dependencies
+        cargo build-dependencies --release
+
+    - name: show cache status
+      run: |
+        sccache --show-stats
+
+  build:
+    needs: [prepare_sccache, prepare_tools, build_dependencies]
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: sccache
@@ -126,17 +195,12 @@ jobs:
     - name: Vendor dependencies(fetch)
       if: steps.cache-vendor.outputs.cache-hit != 'true'
       run: |
-        cargo vendor > .cargo/config
+        exit 1
 
     - name: Vendor dependencies(cached)
       if: steps.cache-vendor.outputs.cache-hit == 'true'
       run: |
         cp .cargo/config_vendored .cargo/config
-
-    - name: Lint dependencies
-      if: steps.cache-vendor.outputs.cache-hit != 'true'
-      run: |
-        cargo deny check
 
     - name: Build
       run: |
