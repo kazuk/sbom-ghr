@@ -129,6 +129,7 @@ jobs:
         cargo deny check
 
     - name: build dependencies
+      if: steps.sccache.outputs.cache-hit != 'true'
       run: |
         cargo build-dependencies
         cargo build-dependencies --release
@@ -289,12 +290,6 @@ jobs:
     - name: Run tests
       run: |
         cargo test --verbose
-    
-    - name: Package
-      run: |
-        cargo build --release --verbose
-        cargo deb
-        cargo rpm build
 
     - name: show cache status
       run: |
