@@ -137,14 +137,14 @@ jobs:
       run: |
         sccache --show-stats
 
-  build:
+  build_packages:
     needs: [prepare_sccache, prepare_tools, build_dependencies]
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: sccache
     steps:
     - uses: actions/checkout@v3
-  
+
     - uses: actions/cache@v3.0.2
       id: sccache_bin
       with:
@@ -165,7 +165,87 @@ jobs:
         # get crate version 
         VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r ".packages | map(select(.manifest_path==\"$METADATA_PATH\")) | map(.version) | @tsv")
         echo "::set-output name=crate_version::$VERSION"
+
+    - uses: actions/cache@v3.0.2
+      id: sccache
+      with:
+        path: |
+          ~/.cache/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
+
+    - uses: actions/cache@v3.0.2
+      id: cache-bin
+      with:
+        path: |
+          ~/.cargo/bin
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
+
+    - uses: actions/cache@v3.0.2
+      id: cache-vendor
+      with:
+        path: |
+          ./vendor
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
+
+    - name: check install binaries
+      if: steps.cache-bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - name: Vendor dependencies(fetch)
+      if: steps.cache-vendor.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+
+    - name: Vendor dependencies(cached)
+      if: steps.cache-vendor.outputs.cache-hit == 'true'
+      run: |
+        cp .cargo/config_vendored .cargo/config
+
+    - name: Package
+      run: |
+        cargo build --release --verbose
+        cargo deb
+        cargo rpm build
+
+    - name: show cache status
+      run: |
+        sccache --show-stats
+
+    - name: Archive deb package
+      uses: actions/upload-artifact@v3
+      with:
+        name: sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
+        path: target/debian/sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
+        retention-days: 3
+    
+    - name: Archive rpm package
+      uses: actions/upload-artifact@v3
+      with:
+        name: sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
+        path: target/release/rpmbuild/RPMS/x86_64/sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
+        retention-days: 3
+
+  build_and_test:
+    needs: [prepare_sccache, prepare_tools, build_dependencies]
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+    steps:
+    - uses: actions/checkout@v3
   
+    - uses: actions/cache@v3.0.2
+      id: sccache_bin
+      with:
+        path: |
+          /usr/local/bin/sccache
+        key: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
+
+    - name: check pre-built sccache
+      if: steps.sccache_bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+ 
     - uses: actions/cache@v3.0.2
       id: sccache
       with:
@@ -220,16 +300,3 @@ jobs:
       run: |
         sccache --show-stats
 
-    - name: Archive deb package
-      uses: actions/upload-artifact@v3
-      with:
-        name: sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
-        path: target/debian/sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
-        retention-days: 3
-    
-    - name: Archive rpm package
-      uses: actions/upload-artifact@v3
-      with:
-        name: sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
-        path: target/release/rpmbuild/RPMS/x86_64/sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
-        retention-days: 3
