@@ -156,6 +156,39 @@ jobs:
       run: |
         sccache --show-stats
 
+  publish_dryrun:
+    needs: [prepare_sccache, build_dependencies]
+    runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: actions/cache@v3.0.2
+      id: sccache_bin
+      with:
+        path: |
+          /usr/local/bin/sccache
+        key: ${{ needs.prepare_sccache.outputs.CACHE_KEY }}
+    - name: check pre-built sccache
+      if: steps.sccache_bin.outputs.cache-hit != 'true'
+      run: |
+        exit 1
+    - uses: actions/cache@v3.0.2
+      id: sccache
+      with:
+        path: |
+          ~/.cache/sccache
+        key: ${{ needs.build_dependencies.outputs.BUILD_CACHE_KEY }}
+
+    - name: test publish (Dry Run)
+      run: |
+        cargo publish --dry-run
+
+    - name: show cache status
+      run: |
+        sccache --show-stats
+
   build_packages:
     needs: [prepare_sccache, prepare_tools, build_dependencies]
     runs-on: ubuntu-latest
@@ -312,4 +345,3 @@ jobs:
     - name: show cache status
       run: |
         sccache --show-stats
-
