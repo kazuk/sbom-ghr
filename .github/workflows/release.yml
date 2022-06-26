@@ -27,22 +27,32 @@ jobs:
         echo "::set-output name=crate_version::$VERSION"
   
     - name: build packages
+      id: packaging
       run: |
         cargo deb
         cargo rpm build
+        DEB_PACKAGE=$(find . -name "*.deb")
+        DEB_FILENAME=$(basename -- ${DEB_PACKAGE})
+        RPM_PACKAGE=$(find . -name "*.x86_64.rpm")
+        RPM_FILENAME=$(basename -- ${RPM_PACKAGE})
+
+        echo "::set-output name=DEB_PACKAGE::${DEB_PACKAGE}"
+        echo "::set-output name=DEB_FILENAME::${DEB_FILENAME}"
+        echo "::set-output name=RPM_PACKAGE::${RPM_PACKAGE}"
+        echo "::set-output name=RPM_FILENAME::${RPM_FILENAME}"
 
     - name: Archive deb package
       uses: actions/upload-artifact@v3
       with:
-        name: sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
-        path: target/debian/sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
+        name: ${{steps.packaging.outputs.DEB_FILENAME}}
+        path: ${{steps.packaging.outputs.DEB_PACKAGE}}
         retention-days: 3
     
     - name: Archive rpm package
       uses: actions/upload-artifact@v3
       with:
-        name: sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
-        path: target/release/rpmbuild/RPMS/x86_64/sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
+        name: ${{steps.packaging.outputs.RPM_FILENAME}}
+        path: ${{steps.packaging.outputs.RPM_PACKAGE}}
         retention-days: 3
 
     - name: push crates.io
@@ -67,8 +77,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }} 
-        asset_path: ./target/debian/sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
-        asset_name: sbom-ghr_${{ steps.get_version.outputs.crate_version }}_amd64.deb
+        asset_path: ${{steps.packaging.outputs.DEB_PACKAGE}}
+        asset_name: ${{steps.packaging.outputs.DEB_FILENAME}}
         
     - name: Upload Release Asset (rpm)
       id: upload-release-asset-rpm
@@ -77,6 +87,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }} 
-        asset_path: ./target/release/rpmbuild/RPMS/x86_64/sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
-        asset_name: sbom-ghr-${{ steps.get_version.outputs.crate_version }}-1.x86_64.rpm
+        asset_path: ${{steps.packaging.outputs.RPM_PACKAGE}}
+        asset_name: ${{steps.packaging.outputs.RPM_FILENAME}}
 
