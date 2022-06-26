@@ -3,7 +3,7 @@ use std::{
     io::{Cursor, SeekFrom},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use octocrab::Octocrab;
 use url::Url;
 
@@ -68,6 +68,59 @@ impl DescribeArgs {
         Ok(package.analyze_files()?)
     }
 
+    fn combine_file_analyze_result(
+        spdx: &mut SpdxDocument,
+        git_files: Files,
+        zip_files: Option<Files>,
+        tar_files: Option<Files>,
+    ) -> Result<()> {
+        let git_package = spdx.new_package("git"); // TODO: name for git
+        let git_package_id = (&git_package.package_spdx_identifier).clone();
+        spdx.push_package(git_package);
+        let zip_package = spdx.new_package("zip"); // TODO: name for zip
+        let zip_package_id = (&zip_package.package_spdx_identifier).clone();
+        spdx.push_package(zip_package);
+        let tar_package = spdx.new_package("tar"); // TODO: name for tar
+        let tar_package_id = (&tar_package.package_spdx_identifier).clone();
+        spdx.push_package(tar_package);
+
+        for (path, file_analyzed) in git_files {
+            let sum_in_git = file_analyzed.sha1_checksum();
+            let mut file_info = spdx.new_file(&path);
+            file_info.file_checksum.push(sum_in_git.clone());
+            if let Some(license) = file_analyzed.license_information_in_file() {
+                file_info.license_information_in_file.push(license.clone());
+            }
+            let file_id = (&file_info.file_spdx_identifier).clone();
+            spdx.push_file(file_info);
+            spdx.push_contains(&git_package_id, &file_id);
+
+            if let Some(z) = &zip_files {
+                if let Some(zip_analyzed) = z.get(&path) {
+                    let sum_in_zip = zip_analyzed.sha1_checksum();
+                    if sum_in_git != sum_in_zip {
+                        bail!("{path} checksum not matched (git vs zip)");
+                    };
+                } else {
+                    bail!("{path} in git not contains in zip package");
+                }
+                spdx.push_contains(&zip_package_id, &file_id);
+            }
+            if let Some(t) = &tar_files {
+                if let Some(tar_analyzed) = t.get(&path) {
+                    let sum_in_tar = tar_analyzed.sha1_checksum();
+                    if sum_in_git != sum_in_tar {
+                        bail!("{path} checksum not matched (git vs tar) ");
+                    };
+                } else {
+                    bail!("{path} in git not contains in tar package");
+                }
+                spdx.push_contains(&tar_package_id, &file_id);
+            }
+        }
+        Ok(())
+    }
+
     pub async fn run(self) -> Result<()> {
         let mut spdx_doc = SpdxDocument::new(&format!("{}_{}", self.repo, self.tag));
         let octocrab = Octocrab::builder().build()?;
@@ -96,18 +149,20 @@ impl DescribeArgs {
             None
         };
 
-        let git_result = git_analyze_task.await?;
-
+        // wait all analyze tasks
+        let git_result = git_analyze_task.await??;
         let zip_result = if let Some(zip_task) = zip_analyze_task {
-            Some(zip_task.await?)
+            Some(zip_task.await??)
         } else {
             None
         };
         let tar_result = if let Some(tar_task) = tar_analyze_task {
-            Some(tar_task.await?)
+            Some(tar_task.await??)
         } else {
             None
         };
+
+        Self::combine_file_analyze_result(&mut spdx_doc, git_result, zip_result, tar_result)?;
 
         for asset in release.assets {
             println!("processing asset : {:?}", asset);

@@ -1,4 +1,4 @@
-use spdx_rs::models::{FileInformation, PackageInformation, SPDX};
+use spdx_rs::models::{FileInformation, PackageInformation, Relationship, RelationshipType, SPDX};
 
 pub struct SpdxDocument {
     spdx_id: i32,
@@ -27,5 +27,10 @@ impl SpdxDocument {
 
     pub fn push_file(&mut self, file: FileInformation) {
         self.document.file_information.push(file);
+    }
+
+    pub fn push_contains(&mut self, package_id: &str, file_id: &str) {
+        let relation = Relationship::new(package_id, &file_id, RelationshipType::Contains, None);
+        self.document.relationships.push(relation);
     }
 }
