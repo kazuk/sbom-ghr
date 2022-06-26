@@ -14,11 +14,12 @@ env:
 jobs:
   prepare_sccache:
     runs-on: ubuntu-latest
-    env: 
-      CACHE_KEY: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}
     outputs:
-      CACHE_KEY: ${{ env.CACHE_KEY }}
+      CACHE_KEY: ${{ steps.setup-key.outputs.CACHE_KEY }}
     steps:
+    - id: setup-key
+      run: |
+        echo '::set-output name=CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_bin-${{ env.SCCACHE_VERSION }}'
     - uses: actions/cache@v3.0.2
       id: sccache_bin
       with:
@@ -40,10 +41,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: sccache
-      BIN_CACHE_KEY: ${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin
     outputs:
-      BIN_CACHE_KEY: ${{ env.BIN_CACHE_KEY }}
+      BIN_CACHE_KEY: ${{ steps.setup-key.outputs.BIN_CACHE_KEY }}
     steps:
+    - id: setup-key
+      run: |
+        echo '::set-output name=BIN_CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-cargo-bin'
     - uses: actions/cache@v3.0.2
       id: sccache_bin
       with:
@@ -84,12 +87,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: sccache
-      BUILD_CACHE_KEY: ${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}
-      VENDOR_CACHE_KEY: ${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}
     outputs:
-      BUILD_CACHE_KEY: ${{ env.BUILD_CACHE_KEY }}
-      VENDOR_CACHE_KEY: ${{ env.VENDOR_CACHE_KEY }}
+      BUILD_CACHE_KEY: ${{ steps.setup-key.outputs.BUILD_CACHE_KEY }}
+      VENDOR_CACHE_KEY: ${{ steps.setup-key.outputs.VENDOR_CACHE_KEY }}
     steps:
+    - id: setup-key
+      run: |
+        echo '::set-output name=BUILD_CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}'
+        echo '::set-output name=VENDOR_CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}'
     - uses: actions/checkout@v3
 
     - uses: actions/cache@v3.0.2
