@@ -5,6 +5,8 @@ edition = "2021"
 description = "SBOM generator for github release"
 license = "MIT"
 authors = ["kazuhiko kikuchi <kazuk.dll@kazuk.jp>"]
+documentation = "https://docs.rs/sbom-ghr"
+repository = "https://github.com/kazuk/sbom-ghr"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

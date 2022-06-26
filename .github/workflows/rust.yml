@@ -226,6 +226,9 @@ jobs:
         cargo build --release --verbose
         cargo deb
         cargo rpm build
+    
+    - name: test publish (Dry Run)
+        cargo publish --dry-run
 
     - name: show cache status
       run: |
