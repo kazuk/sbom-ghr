@@ -91,10 +91,6 @@ jobs:
       BUILD_CACHE_KEY: ${{ steps.setup-key.outputs.BUILD_CACHE_KEY }}
       VENDOR_CACHE_KEY: ${{ steps.setup-key.outputs.VENDOR_CACHE_KEY }}
     steps:
-    - id: setup-key
-      run: |
-        echo '::set-output name=BUILD_CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-sccache_${{ hashFiles('Cargo.lock') }}'
-        echo '::set-output name=VENDOR_CACHE_KEY::${{ env.KEY_PREFIX }}-${{ runner.os }}-vendor-${{ hashFiles('Cargo.lock') }}'
     - uses: actions/checkout@v3
 
     - id: setup-key
