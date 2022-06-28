@@ -1,0 +1,13 @@
+
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    versioning-strategy: lockfile-only
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "10:00"
+      timezone: "Asiz/Tokyo"
+    reviewers:
+      - "kazuk"
