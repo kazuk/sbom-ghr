@@ -1197,6 +1197,7 @@ dependencies = [
  "anyhow",
  "ar",
  "base16ct",
+ "chrono",
  "clap",
  "digest",
  "flate2",

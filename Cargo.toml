@@ -23,6 +23,7 @@ sbom-ghr = { path = "/usr/bin/./src/bin/sbom-ghr" }
 anyhow = "1.0.57"
 ar = "0.9.0"
 base16ct = {version="0.1.1", features=["alloc"]}
+chrono = "0.4.19"
 clap = { version="3.1.18", features=["derive","env"]}
 digest = "0.10.3"
 flate2 = "1.0.24"

@@ -1,5 +1,11 @@
 use spdx_rs::models::{FileInformation, PackageInformation, Relationship, RelationshipType, SPDX};
 
+mod tv_writer;
+
+pub trait WriteTagValue<W: std::io::Write> {
+    fn write_tag_value( &self, write: &mut W) -> Result<(), std::io::Error>;
+}
+
 pub struct SpdxDocument {
     spdx_id: i32,
     document: SPDX,
