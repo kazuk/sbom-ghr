@@ -3,28 +3,113 @@
 use std::fmt::Display;
 
 use chrono::SecondsFormat;
-use spdx_rs::models::{SPDX, DocumentCreationInformation, CreationInfo};
+use spdx_rs::models::{
+    Algorithm, Annotation, Checksum, CreationInfo, DocumentCreationInformation,
+    ExternalDocumentReference, ExternalPackageReference, FileInformation,
+    OtherLicensingInformationDetected, PackageInformation, PackageVerificationCode, Relationship,
+    Snippet, SPDX,
+};
 
 use super::WriteTagValue;
-   
-impl<W: std::io::Write> WriteTagValue<W> for SPDX {
 
-    fn write_tag_value( &self, write: &mut W) -> Result<(), std::io::Error> {
+fn write_tag_value_normal<W: std::io::Write, S: Display>(
+    write: &mut W,
+    tag_name: &str,
+    tag_value: &S,
+) -> Result<(), std::io::Error> {
+    writeln!(write, "{}: {}", tag_name, tag_value)
+}
+
+fn write_tag_value_opt<W: std::io::Write, S: Display>(
+    write: &mut W,
+    tag_name: &str,
+    tag_value: &Option<S>,
+) -> Result<(), std::io::Error> {
+    if let Some(v) = tag_value {
+        write_tag_value_normal(write, tag_name, v)?;
+    }
+    Ok(())
+}
+
+fn write_tag_value_vec<W: std::io::Write, S: Display>(
+    write: &mut W,
+    tag_name: &str,
+    values: &Vec<S>,
+) -> Result<(), std::io::Error> {
+    for value in values {
+        write_tag_value_normal(write, tag_name, value)?;
+    }
+    Ok(())
+}
+
+fn wrap_text<S: Display>(wrapping: &S) -> String {
+    format!("<text>{}</text>", wrapping)
+}
+
+fn write_tag_value_vec_text<W: std::io::Write, S: Display>(
+    write: &mut W,
+    tag_name: &str,
+    values: &Vec<S>,
+) -> Result<(), std::io::Error> {
+    for value in values {
+        write_tag_value_normal(write, tag_name, &wrap_text(value))?;
+    }
+    Ok(())
+}
+
+fn wrap_text_opt<S: Display>(wrapping: &Option<S>) -> Option<String> {
+    wrapping.as_ref().map(|s| wrap_text(&s))
+}
+
+fn format_checksum(checksum: &Checksum) -> String {
+    let algorithm_name = match checksum.algorithm {
+        Algorithm::SHA1 => "SHA1",
+        Algorithm::SHA224 => "SHA224",
+        Algorithm::SHA256 => "SHA256",
+        Algorithm::SHA384 => "SHA384",
+        Algorithm::SHA512 => "SHA512",
+        Algorithm::MD2 => "MD2",
+        Algorithm::MD4 => "MD4",
+        Algorithm::MD5 => "MD5",
+        Algorithm::MD6 => "MD6",
+    };
+    format!("{}: {}", algorithm_name, checksum.value)
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for SPDX {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
         self.document_creation_information.write_tag_value(write)?;
-        self.package_information.write_tag_value(write)?;
-        self.file_information.write_tag_value(write)?;
+        for package in &self.package_information {
+            package.write_tag_value(write)?;
+        }
+        for file in &self.file_information {
+            file.write_tag_value(write)?;
+        }
+        for snippet in &self.snippet_information {
+            snippet.write_tag_value(write)?;
+        }
+        for other_licensing in &self.other_licensing_information_detected {
+            other_licensing.write_tag_value(write)?;
+        }
+        for rel in &self.relationships {
+            rel.write_tag_value(write)?;
+        }
+        for ann in &self.annotations {
+            ann.write_tag_value(write)?;
+        }
+
         Ok(())
     }
 }
 
 impl<W: std::io::Write> WriteTagValue<W> for DocumentCreationInformation {
-    fn write_tag_value( &self, write: &mut W) -> Result<(), std::io::Error> {
-        writeln!(write, "SPDXVersion: {}", self.spdx_version)?;
-        writeln!(write, "DataLicense: {}", self.data_license)?;
-        writeln!(write, "SPDXID: {}", self.spdx_identifier)?;
-        writeln!(write, "DocumentName: {}", self.document_name)?;
-        writeln!(write, "DocumentNamespace: {}", self.spdx_document_namespace)?;
-        for item in self.external_document_references {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        write_tag_value_normal(write, "SPDXVersion", &self.spdx_version)?;
+        write_tag_value_normal(write, "DataLicense", &self.data_license)?;
+        write_tag_value_normal(write, "SPDXID", &self.spdx_identifier)?;
+        write_tag_value_normal(write, "DocumentName", &self.document_name)?;
+        write_tag_value_normal(write, "DocumentNamespace", &self.spdx_document_namespace)?;
+        for item in &self.external_document_references {
             item.write_tag_value(write)?;
         }
         self.creation_info.write_tag_value(write)?;
@@ -32,26 +117,142 @@ impl<W: std::io::Write> WriteTagValue<W> for DocumentCreationInformation {
     }
 }
 
-fn write_tag_value_opt<W: std::io::Write, S: Display>( write: &mut W, tag_name: &str, tag_value: &Option<S> ) -> Result<(), std::io::Error> {
-    if let Some(v) = tag_value {
-        writeln!( write, "{}: {}", tag_name, v)?;
-    }
-    Ok(())
-}
-
-fn write_tag_value_vec<W: std::io::Write, S: Display>( write: &mut W, tag_name: &str, values: &Vec<S>) -> Result<(), std::io::Error> {
-    for value in values {
-        writeln!( write, "{}: {}", tag_name, value)?;
-    }
-    Ok(())
-}
-
-
 impl<W: std::io::Write> WriteTagValue<W> for CreationInfo {
-    fn write_tag_value( &self, write: &mut W) -> Result<(), std::io::Error> {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
         write_tag_value_opt(write, "LicenseListVersion", &self.license_list_version)?;
         write_tag_value_vec(write, "Creator", &self.creators)?;
-        write!(write, "Created: {}", self.created.to_rfc3339_opts(SecondsFormat::Secs, true))?;
+        write_tag_value_normal(
+            write,
+            "Created",
+            &self.created.to_rfc3339_opts(SecondsFormat::Secs, true),
+        )?;
         Ok(())
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for ExternalDocumentReference {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        let tag_value = format!(
+            "{} {} {}",
+            self.id_string,
+            self.spdx_document_uri,
+            format_checksum(&self.checksum)
+        );
+        write_tag_value_normal(write, "ExternalDocumentRef", &tag_value)?;
+        Ok(())
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for PackageInformation {
+    /// https://spdx.github.io/spdx-spec/package-information/
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        write_tag_value_normal(write, "PackageName", &self.package_name)?;
+        write_tag_value_normal(write, "SPDXID", &self.package_spdx_identifier)?;
+        write_tag_value_opt(write, "PackageVersion", &self.package_version)?;
+        write_tag_value_opt(write, "PackageFileName", &self.package_file_name)?;
+        write_tag_value_opt(write, "PackageSupplier", &self.package_supplier)?;
+        write_tag_value_opt(write, "PackageOriginator", &self.package_originator)?;
+        write_tag_value_normal(
+            write,
+            "PackageDownloadLocation",
+            &self.package_download_location,
+        )?;
+        write_tag_value_opt(write, "FilesAnalyzed", &self.files_analyzed)?;
+        if let Some(package_verification_code) = &self.package_verification_code {
+            package_verification_code.write_tag_value(write)?;
+        }
+        for sum in &self.package_checksum {
+            write_tag_value_normal(write, "PackageChecksum", &format_checksum(sum))?;
+        }
+        write_tag_value_opt(write, "PackageHomePage", &self.package_home_page)?;
+        write_tag_value_opt(
+            write,
+            "PackageSourceInfo",
+            &wrap_text_opt(&self.source_information),
+        )?;
+        write_tag_value_normal(write, "PackageLicenseConcluded", &self.concluded_license)?;
+        write_tag_value_vec(
+            write,
+            "PackageLicenseInfoFromFiles",
+            &self.all_licenses_information_from_files,
+        )?;
+        write_tag_value_normal(write, "PackageLicenseDeclared", &self.declared_license)?;
+        write_tag_value_opt(
+            write,
+            "PackageLicenseComments",
+            &wrap_text_opt(&self.comments_on_license),
+        )?;
+        write_tag_value_normal(
+            write,
+            "PackageCopyrightText",
+            &wrap_text(&self.copyright_text),
+        )?;
+        write_tag_value_opt(
+            write,
+            "PackageSummary",
+            &wrap_text_opt(&self.package_summary_description),
+        )?;
+        write_tag_value_opt(
+            write,
+            "PackageDescription",
+            &wrap_text_opt(&self.package_detailed_description),
+        )?;
+        write_tag_value_opt(
+            write,
+            "PackageComment",
+            &wrap_text_opt(&self.package_comment),
+        )?;
+        for extref in &self.external_reference {
+            extref.write_tag_value(write)?;
+        }
+        write_tag_value_vec_text(
+            write,
+            "PackageAttributionText",
+            &self.package_attribution_text,
+        )?;
+
+        Ok(())
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for PackageVerificationCode {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        todo!()
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for ExternalPackageReference {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        todo!()
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for FileInformation {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        todo!()
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for Snippet {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        todo!()
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for OtherLicensingInformationDetected {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        todo!()
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for Relationship {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        todo!()
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for Annotation {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        todo!()
     }
 }
