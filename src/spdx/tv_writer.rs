@@ -1,13 +1,13 @@
 //! write tag-value for SPDX
 
-use std::fmt::Display;
+use std::{fmt::Display, io::ErrorKind};
 
 use chrono::SecondsFormat;
 use spdx_rs::models::{
     Algorithm, Annotation, Checksum, CreationInfo, DocumentCreationInformation,
     ExternalDocumentReference, ExternalPackageReference, ExternalPackageReferenceCategory,
     FileInformation, FileType, OtherLicensingInformationDetected, PackageInformation,
-    PackageVerificationCode, Relationship, Snippet, SPDX,
+    PackageVerificationCode, Pointer, Range, Relationship, Snippet, SPDX,
 };
 
 use super::WriteTagValue;
@@ -61,6 +61,21 @@ fn wrap_text_opt<S: Display>(wrapping: &Option<S>) -> Option<String> {
     wrapping.as_ref().map(|s| wrap_text(&s))
 }
 
+fn validate_id_string(id_string: &str) -> Result<(), std::io::Error> {
+    fn valid_id_string_char(ch: char) -> bool {
+        ch.is_ascii_alphanumeric() || ch == '.' || ch == '-' || ch == '+'
+    }
+
+    if id_string.chars().all(valid_id_string_char) {
+        Ok(())
+    } else {
+        Err(std::io::Error::new(
+            ErrorKind::InvalidData,
+            "invalid charctor in id_string",
+        ))
+    }
+}
+
 fn format_checksum(checksum: &Checksum) -> String {
     let algorithm_name = match checksum.algorithm {
         Algorithm::SHA1 => "SHA1",
@@ -104,6 +119,8 @@ impl<W: std::io::Write> WriteTagValue<W> for SPDX {
 
 impl<W: std::io::Write> WriteTagValue<W> for DocumentCreationInformation {
     fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        validate_id_string(&self.spdx_identifier)?;
+
         write_tag_value_normal(write, "SPDXVersion", &self.spdx_version)?;
         write_tag_value_normal(write, "DataLicense", &self.data_license)?;
         write_tag_value_normal(write, "SPDXID", &self.spdx_identifier)?;
@@ -112,6 +129,12 @@ impl<W: std::io::Write> WriteTagValue<W> for DocumentCreationInformation {
         for item in &self.external_document_references {
             item.write_tag_value(write)?;
         }
+        write_tag_value_opt(
+            write,
+            "DocumentComment",
+            &wrap_text_opt(&self.document_comment),
+        )?;
+
         self.creation_info.write_tag_value(write)?;
         Ok(())
     }
@@ -132,8 +155,10 @@ impl<W: std::io::Write> WriteTagValue<W> for CreationInfo {
 
 impl<W: std::io::Write> WriteTagValue<W> for ExternalDocumentReference {
     fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        validate_id_string(&self.id_string)?;
+
         let tag_value = format!(
-            "{} {} {}",
+            "DocumentRef-{} {} {}",
             self.id_string,
             self.spdx_document_uri,
             format_checksum(&self.checksum)
@@ -301,9 +326,86 @@ impl<W: std::io::Write> WriteTagValue<W> for FileInformation {
     }
 }
 
+/// https://spdx.github.io/spdx-spec/snippet-information/
 impl<W: std::io::Write> WriteTagValue<W> for Snippet {
     fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
-        todo!()
+        write_tag_value_normal(write, "SnippetSPDXID", &self.snippet_spdx_identifier)?;
+        write_tag_value_normal(
+            write,
+            "SnippetFromFileSPDXID",
+            &self.snippet_from_file_spdx_identifier,
+        )?;
+        for range in &self.ranges {
+            range.write_tag_value(write)?;
+        }
+        write_tag_value_normal(
+            write,
+            "SnippetLicenseConcluded",
+            &self.snippet_concluded_license,
+        )?;
+        write_tag_value_vec(
+            write,
+            "LicenseInfoInSnippet",
+            &self.license_information_in_snippet,
+        )?;
+        write_tag_value_opt(
+            write,
+            "SnippetLicenseComments",
+            &wrap_text_opt(&self.snippet_comments_on_license),
+        )?;
+        write_tag_value_normal(
+            write,
+            "SnippetCopyrightText",
+            &wrap_text(&self.snippet_copyright_text),
+        )?;
+        write_tag_value_opt(
+            write,
+            "SnippetComment",
+            &wrap_text_opt(&self.snippet_comment),
+        )?;
+        write_tag_value_opt(write, "SnippetName", &self.snippet_name)?;
+        write_tag_value_opt(
+            write,
+            "SnippetAttributionText",
+            &wrap_text_opt(&self.snippet_attribution_text),
+        )?;
+
+        Ok(())
+    }
+}
+
+impl<W: std::io::Write> WriteTagValue<W> for Range {
+    fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        match self.start_pointer {
+            Pointer::Byte {
+                offset: start_offset,
+                ..
+            } => match self.end_pointer {
+                Pointer::Byte {
+                    offset: end_offset, ..
+                } => write_tag_value_normal(
+                    write,
+                    "SnippetByteRange",
+                    &format!("{}:{}", start_offset, end_offset),
+                )?,
+                Pointer::Line { .. } => panic!("range combines byte and line"),
+            },
+            Pointer::Line {
+                line_number: start_line,
+                ..
+            } => match self.end_pointer {
+                Pointer::Byte { .. } => panic!("range combines line and byte"),
+                Pointer::Line {
+                    line_number: end_line,
+                    ..
+                } => write_tag_value_normal(
+                    write,
+                    "SnippetLineRange",
+                    &format!("{}:{}", start_line, end_line),
+                )?,
+            },
+        }
+        Ok(())
     }
 }
 
@@ -322,5 +424,112 @@ impl<W: std::io::Write> WriteTagValue<W> for Relationship {
 impl<W: std::io::Write> WriteTagValue<W> for Annotation {
     fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use spdx_rs::{
+        models::{Algorithm, Checksum, ExternalDocumentReference, SPDX},
+        parsers::spdx_from_tag_value,
+    };
+
+    use crate::spdx::WriteTagValue;
+
+    fn write_and_parse(source_spdx: &SPDX) -> SPDX {
+        let mut buffer = Vec::new();
+        let mut write = Cursor::new(&mut buffer);
+        source_spdx.write_tag_value(&mut write).unwrap();
+        let spdx_document = std::str::from_utf8(&buffer).unwrap();
+        eprintln!("SPDX-DOCUMENT \n\n{}", spdx_document);
+        spdx_from_tag_value(spdx_document).unwrap()
+    }
+
+    #[test]
+    fn write_parse_simpl_spdxdoc() {
+        let result_spdx = write_and_parse(&SPDX::new("this is spdx file"));
+        assert_eq!(
+            result_spdx.document_creation_information.document_name,
+            "this is spdx file"
+        );
+    }
+
+    #[test]
+    fn write_parse_doc_creation_information() {
+        let mut source_spdx = SPDX::new("this is spdx file");
+        source_spdx.document_creation_information.spdx_version = "5.0.0-snapshot".to_string();
+        source_spdx.document_creation_information.data_license = "this is data license".to_string();
+        source_spdx.document_creation_information.spdx_identifier = "SPDXRef-ROOT".to_string();
+        source_spdx
+            .document_creation_information
+            .spdx_document_namespace = "NAMESPACE".to_string();
+        let external_document_reference = ExternalDocumentReference::new(
+            "EXTERNAL-ID-STRING".to_string(),
+            "http://spdx.org/spdxdocs/spdx-tools-v1.2-3F2504E0-4F89-41D3-9A0C-0305E82C3301"
+                .to_string(),
+            Checksum::new(Algorithm::SHA1, "12345"),
+        );
+        source_spdx
+            .document_creation_information
+            .external_document_references
+            .push(external_document_reference);
+        let external_document_reference = ExternalDocumentReference::new(
+            "EXTERNAL-ID-STRING2".to_string(),
+            "http://spdx.org/spdxdocs/spdx-tools-v1.2-3F2504E0-4F89-41D3-9A0C-0305E82C3301"
+                .to_string(),
+            Checksum::new(Algorithm::MD5, "12345"),
+        );
+        source_spdx
+            .document_creation_information
+            .external_document_references
+            .push(external_document_reference);
+        source_spdx.document_creation_information.document_comment =
+            Some("document comment! \n multi line!".to_string());
+
+        let result_spdx = write_and_parse(&source_spdx);
+
+        assert_eq!(
+            result_spdx.document_creation_information.document_name,
+            "this is spdx file"
+        );
+
+        assert_eq!(
+            result_spdx.document_creation_information.spdx_version,
+            "5.0.0-snapshot"
+        );
+        assert_eq!(
+            result_spdx.document_creation_information.data_license,
+            "this is data license"
+        );
+        assert_eq!(
+            result_spdx.document_creation_information.spdx_identifier,
+            "SPDXRef-ROOT"
+        );
+        assert_eq!(
+            result_spdx
+                .document_creation_information
+                .spdx_document_namespace,
+            "NAMESPACE"
+        );
+        assert_eq!(
+            result_spdx
+                .document_creation_information
+                .external_document_references
+                .len(),
+            2
+        );
+        assert_eq!(
+            result_spdx
+                .document_creation_information
+                .external_document_references[0]
+                .id_string,
+            "EXTERNAL-ID-STRING"
+        );
+        assert_eq!(
+            result_spdx.document_creation_information.document_comment,
+            Some("document comment! \n multi line!".to_string())
+        );
     }
 }
