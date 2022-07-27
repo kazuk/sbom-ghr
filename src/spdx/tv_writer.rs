@@ -409,8 +409,28 @@ impl<W: std::io::Write> WriteTagValue<W> for Range {
     }
 }
 
+/// https://spdx.github.io/spdx-spec/other-licensing-information-detected/
 impl<W: std::io::Write> WriteTagValue<W> for OtherLicensingInformationDetected {
     fn write_tag_value(&self, write: &mut W) -> Result<(), std::io::Error> {
+        validate_id_string(&self.license_identifier)?;
+
+        write_tag_value_normal(
+            write,
+            "LicenseID",
+            &format!("LicenseRef-{}", self.license_identifier),
+        )?;
+        write_tag_value_normal(write, "ExtractedText", &wrap_text(&self.extracted_text))?;
+        write_tag_value_normal(write, "LicenseName", &self.license_name)?;
+        write_tag_value_vec(
+            write,
+            "LicenseCrossReference",
+            &self.license_cross_reference,
+        )?;
+        write_tag_value_opt(
+            write,
+            "LicenseComment",
+            &wrap_text_opt(&self.license_comment),
+        )?;
         todo!()
     }
 }
